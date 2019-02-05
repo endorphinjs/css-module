@@ -1,0 +1,69 @@
+my-module {
+    position: relative;
+    display: block;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+}
+
+my-module[size=small] {
+    width: 15px;
+    height: 15px;
+}
+
+.foo my-module {
+    width: 40px;
+}
+
+.foo > .bar my-module {
+    width: 50px;
+}
+
+slot[slotted][_my-module] > div {
+    color: red;
+}
+
+*[_my-module] {
+    font-size: 12px;
+}
+
+a[_my-module].foo.bar#baz {
+    margin: 10px;
+}
+
+a[_my-module] .foo[_my-module] .bar[_my-module] #baz[_my-module] {
+    position: relative;
+}
+
+.icon[_my-module],
+.label[_my-module] {
+    position: relative;
+    animation: bounce_my-module 0.5s;
+    animation-name: bounce_my-module;
+}
+
+my-module[size=small] .icon[_my-module] {
+    position: relative;
+}
+
+a[_my-module] {
+    color: #ffcc00;
+}
+
+[foo=bar][_my-module] {
+    color: #000000;
+}
+
+span[_my-module]>a[_my-module] {
+    font-weight: bold;
+}
+
+@keyframes bounce_my-module {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(100%);
+    }
+}

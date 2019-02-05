@@ -1,0 +1,69 @@
+:host {
+    position: relative;
+    display: block;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+}
+
+:host([size=small]) {
+    width: 15px;
+    height: 15px;
+}
+
+:host-context(.foo) {
+    width: 40px;
+}
+
+:host-context(.foo > .bar) {
+    width: 50px;
+}
+
+::slotted(div) {
+    color: red;
+}
+
+* {
+    font-size: 12px;
+}
+
+a.foo.bar#baz {
+    margin: 10px;
+}
+
+a .foo .bar #baz {
+    position: relative;
+}
+
+.icon,
+.label {
+    position: relative;
+    animation: bounce 0.5s;
+    animation-name: bounce;
+}
+
+:host([size=small]) .icon {
+    position: relative;
+}
+
+a {
+    color: #ffcc00;
+}
+
+[foo=bar] {
+    color: #000000;
+}
+
+span>a {
+    font-weight: bold;
+}
+
+@keyframes bounce {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(100%);
+    }
+}

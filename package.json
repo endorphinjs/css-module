@@ -1,0 +1,39 @@
+{
+  "name": "@endorphinjs/css-module",
+  "version": "0.0.0",
+  "description": "A PostCSS plugin for scoping CSS selectors",
+  "main": "dist/css-modules.cjs.js",
+  "module": "dist/css-modules.es.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "dependencies": {
+    "@emmetio/stream-reader": "^2.2.0",
+    "@emmetio/stream-reader-utils": "^0.1.0",
+    "postcss": "^7.0.14"
+  },
+  "devDependencies": {
+    "mocha": "^5.2.0",
+    "reify": "^0.18.1",
+    "rollup": "^1.1.2"
+  },
+  "scripts": {
+    "test": "mocha",
+    "build": "rollup -c",
+    "watch": "rollup -wc",
+    "prepublish": "npm run build && npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endorphinjs/css-module.git"
+  },
+  "keywords": [
+    "postcss-plugin"
+  ],
+  "author": "Sergey Chikuyonok <serge.che@gmail.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/endorphinjs/css-module/issues"
+  },
+  "homepage": "https://github.com/endorphinjs/css-module#readme"
+}
