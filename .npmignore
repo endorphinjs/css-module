@@ -4,7 +4,7 @@ jspm_packages
 .npm
 /.*
 /*.*
+!/*.js
 /test
 /src
 /coverage
-/lib

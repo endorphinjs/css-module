@@ -1,145 +1,164 @@
-'use strict';
-
-import * as postcss from 'postcss';
-import StreamReader from '@emmetio/stream-reader';
-import consumeToken, { args } from './lib/selector/index';
-
-export default postcss.plugin('endorphin-css-modules', options => {
-    if (typeof options === 'string') {
-        options = { component: options };
-    }
-
-    if (!options || !options.component) {
-        throw new Error('Component name must be provided!');
-    }
-
-    const component = options.component;
-    const suffix = options.suffix || `_${component}`;
-    const selectorSuffix = `[${suffix}]`;
-
-    return root => {
-        root.walkRules(rule => {
-            if (!isKeyframesRule(rule.parent)) {
-                // Do not rewrite rules inside `@keyframes` and its variations
-                rule.selectors = rule.selectors.map(sel => rewriteSelector(sel, component, selectorSuffix));
-            }
-        });
-        rewriteAnimations(root, suffix);
-    };
-});
+const { parse, walk, generate } = require('css-tree');
 
 /**
- * Переписывает селектор: заменяет различные фрагменты селектора (имя элемента,
- * класс, идентификатор) на класс с суффиксом модуля
- * @param  {String} selector Селектор, который нужно переписать
- * @param  {String} component Название модуля, используется для перезаписи `:host`
- * @param  {String} suffix Суффикс, который нужно добавить частям селектора
- * @return {String} Переписанный селектор
+ * Isolates given CSS code with `scope` token
+ * @param {string} code CSS source to rewrite
+ * @param {string} scope CSS scoping token
+ * @param {Object} [options] Options for CSS Tree parser
  */
-function rewriteSelector(selector, component, suffix) {
-    const stream = new StreamReader(selector);
-    let token, next, result = '';
-    let added = false;
+module.exports = function rewriteCSS(code, scope, options) {
+    const ast = parse(code, options);
+    const animations = {};
 
-    const addSuffix = () => {
-        if (!added) {
-            result += suffix;
-            added = true;
-        }
-    };
-
-    while (!stream.eof()) {
-        if (token = consumeToken(stream)) {
-            if (isPseudo(token, 'host')) {
-                // Попали в `:host` — это описание компонента. Также этот селектор
-                // может содержать уточняющий селектор в виде аргумента функции:
-                // его мы (пока) запишем как есть
-                result += component;
-                next = args(stream);
-                if (next) {
-                    for (let j = 0, jl = next.size; j < jl; j++) {
-                        result += next.item(j).valueOf();
-                    }
-                }
-            } else if (isPseudo(token, 'host-context')) {
-                // Попали в `:host-context(<sel>)` — это описание компонента,
-                // который находится внутри `<sel>`.
-                next = args(stream);
-                if (next) {
-                    for (let j = 0, jl = next.size; j < jl; j++) {
-                        result += next.item(j).valueOf();
-                    }
-                }
-                result += ` ${component}`;
-            } else if (isPseudo(token, 'slotted')) {
-                // Попали в псевдо-селектор ::slotted() — это функция,
-                // которая содержит другой селектор, который должен сматчится
-                // только в том случае, если он пришёл из внешнего слота
-                next = args(stream);
-                if (next) {
-                    result += `slot[slotted]${suffix} > `;
-                    for (let j = 0, jl = next.size; j < jl; j++) {
-                        result += next.item(j).valueOf();
-                    }
-                }
-            } else if (token.type === 'ident' || token.type === 'id' || token.type === 'universal') {
-                result += token.valueOf();
-                addSuffix();
-            } else if (token.type === 'combinator' || token.type === 'whitespace') {
-                added = false;
-                result += token.valueOf();
-            } else if (token.type === 'class' || token.type === 'attribute') {
-                result += token.valueOf();
-                addSuffix();
-            } else {
-                result += token.valueOf();
+    walk(ast, function(node) {
+        if (node.type === 'Selector') {
+            if (!this.atrule || this.atrule.name !== 'keyframes') {
+                // Do no rewrite selectors inside @keyframes
+                rewriteSelector(node, scope);
             }
-        } else {
-            stream.start = stream.pos;
-            stream.next();
-            result += stream.current();
+        } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes') {
+            // Rewrite animation definition
+            const scopedName = concat(node.name, scope);
+            animations[node.name] = scopedName;
+            node.name = scopedName;
+        }
+    });
+
+    // Use second pass to replace locally defined animations with scoped names
+    walk(ast, {
+        visit: 'Declaration',
+        enter(node) {
+            if (node.property === 'animation' || node.property === 'animation-name') {
+                walk(node.value, value => {
+                    if (value.type === 'Identifier' && value.name in animations) {
+                        value.name = animations[value.name];
+                    }
+                });
+            }
+        }
+    });
+
+    return generate(ast, options);
+};
+
+/**
+ * Scopes given CSS selector
+ * @param {Object} sel
+ * @param {string} scope
+ */
+function rewriteSelector(sel, scope) {
+    // To properly scope CSS selector, we have to rewrite fist and last part of it.
+    // E.g. in `.foo .bar. > .baz` we have to scope `.foo` and `.baz` only
+    const parts = getParts(sel);
+    const first = parts.shift(), last = parts.pop();
+
+    if (first) {
+        first.data = rewriteSelectorPart(first.data, scope);
+    }
+
+    if (last) {
+        last.data = rewriteSelectorPart(last.data, scope);
+    }
+}
+
+/**
+ * Scopes given CSS selector fragment, if possible.
+ * Returns either rewritten or the same node
+ * @param {Object} part
+ * @param {string} scope
+ * @returns {boolean}
+ */
+function rewriteSelectorPart(part, scope) {
+    if (part.type === 'PseudoClassSelector') {
+        if (part.name === 'host') {
+            // :host(<sel>)
+            return raw(`[${scope}-host]${rawContent(part)}`, part);
+        }
+
+        if (part.name === 'host-context') {
+            // :host-context(<sel>)
+            return raw(`${rawContent(part)} [${scope}-host]`, part);
         }
     }
+
+    if (part.type === 'PseudoElementSelector' && part.name === 'slotted') {
+        const content = rawContent(part);
+
+        if (content) {
+            return raw(`slot[slotted][${scope}] > ${content}`, part);
+        }
+    }
+
+    if (part.type === 'TypeSelector') {
+        return raw(`${part.name}[${scope}]`, part);
+    }
+
+    if (part.type === 'IdSelector') {
+        return raw(`[${scope}]#${part.name}`, part);
+    }
+
+    if (part.type === 'ClassSelector') {
+        return raw(`[${scope}].${part.name}`, part);
+    }
+
+    if (part.type === 'AttributeSelector') {
+        return raw(`[${scope}]${generate(part)}`, part);
+    }
+
+    return part;
+}
+
+/**
+ * Creates raw token with given value
+ * @param {string} value
+ * @param {Object} [src]
+ */
+function raw(value, src) {
+    return {
+        type: 'Raw',
+        loc: src && src.loc,
+        value
+    };
+}
+
+function rawContent(node) {
+    let content = '';
+    walk(node, child => {
+        if (child.type === 'Selector') {
+            content = generate(child);
+        } else if (child.type === 'Raw') {
+            content = child.value;
+        }
+    });
+
+    return content;
+}
+
+/**
+ * Concatenates two strings with optional separator
+ * @param {string} name
+ * @param {string} suffix
+ */
+function concat(name, suffix) {
+    const sep = suffix[0] === '_' || suffix[0] === '-' ? '' : '-';
+    return name + sep + suffix;
+}
+
+/**
+ * Returns list of child items where selector part starts
+ * @param {AstNode} sel
+ * @returns {object[]}
+ */
+function getParts(sel) {
+    const result = [];
+    let part = null;
+    sel.children.forEach((child, listItem) => {
+        if (child.type === 'Combinator' || child.type === 'WhiteSpace') {
+            part = null;
+        } else if (!part) {
+            result.push(part = listItem);
+        }
+    });
 
     return result;
-}
-
-/**
- * Перезапись анимаций (@keyframes): добавляет всем используемым анимациям внутри
- * CSS-модуля указанный префикс. Если используемая анимация отсутствует, она
- * не переписывается
- * @param  {Root}   root
- * @param  {String} suffix
- */
-function rewriteAnimations(root, suffix) {
-    const animations = new Set();
-
-    root.walkAtRules(rule => {
-        if (isKeyframesRule(rule) && rule.params) {
-            animations.add(rule.params);
-            rule.params += suffix;
-        }
-    });
-
-    root.walkDecls(decl => {
-        if (decl.prop === 'animation' || decl.prop === 'animation-name') {
-            const parts = decl.value.split(' ');
-
-            // Переписываем только объявленные в текущем файле анимации,
-            // для остальных подразумеваем, что они объявлены глобально и менять
-            // их нельзя
-            if (animations.has(parts[0])) {
-                parts[0] += suffix;
-                decl.value = parts.join(' ');
-            }
-        }
-    });
-}
-
-function isKeyframesRule(rule) {
-    return rule && rule.type === 'atrule' && /\bkeyframes$/.test(rule.name);
-}
-
-function isPseudo(token, name) {
-    return token.type === 'pseudo' && token.item(0) && token.item(0).valueOf() === name;
 }

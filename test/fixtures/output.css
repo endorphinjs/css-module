@@ -1,69 +1,68 @@
-my-module {
+[abc123-host] {
     position: relative;
     display: block;
     width: 30px;
     height: 30px;
-    border-radius: 50%;
+    border-radius: 50%
 }
 
-my-module[size=small] {
+[abc123-host][size=small] {
     width: 15px;
-    height: 15px;
+    height: 15px
 }
 
-.foo my-module {
-    width: 40px;
+.foo [abc123-host] {
+    width: 40px
 }
 
-.foo > .bar my-module {
-    width: 50px;
+.foo > .bar [abc123-host] {
+    width: 50px
 }
 
-slot[slotted][_my-module] > div {
-    color: red;
+slot[slotted][abc123] > div {
+    color: red
 }
 
-*[_my-module] {
-    font-size: 12px;
+*[abc123] {
+    font-size: 12px
 }
 
-a[_my-module].foo.bar#baz {
-    margin: 10px;
+a[abc123].foo.bar#baz {
+    margin: 10px
 }
 
-a[_my-module] .foo[_my-module] .bar[_my-module] #baz[_my-module] {
+a[abc123] .foo .bar [abc123]#baz {
+    position: relative
+}
+
+[abc123].icon, [abc123].label {
     position: relative;
+    animation: bounce-abc123 0.5s;
+    animation-name: bounce-abc123
 }
 
-.icon[_my-module],
-.label[_my-module] {
-    position: relative;
-    animation: bounce_my-module 0.5s;
-    animation-name: bounce_my-module;
+[abc123-host][size=small] [abc123].icon {
+    position: relative
 }
 
-my-module[size=small] .icon[_my-module] {
-    position: relative;
+a[abc123] {
+    color: #ffcc00
 }
 
-a[_my-module] {
-    color: #ffcc00;
+[abc123][foo=bar] {
+    color: #000000
 }
 
-[foo=bar][_my-module] {
-    color: #000000;
+span[abc123]>a[abc123] {
+    font-weight: bold
 }
 
-span[_my-module]>a[_my-module] {
-    font-weight: bold;
-}
-
-@keyframes bounce_my-module {
+@keyframes bounce-abc123 {
     from {
-        transform: translateX(0);
+        transform: translateX(0)
     }
 
     to {
-        transform: translateX(100%);
+        transform: translateX(100%)
     }
 }
