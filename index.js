@@ -52,86 +52,60 @@ function rewriteSelector(sel, scope) {
     const parts = getParts(sel);
     const first = parts.shift(), last = parts.pop();
 
-    if (first) {
-        first.data = rewriteSelectorPart(first.data, scope);
-    }
-
-    if (last) {
-        last.data = rewriteSelectorPart(last.data, scope);
-    }
+    first && rewriteSelectorPart2(sel, first, scope);
+    last && rewriteSelectorPart2(sel, last, scope);
 }
 
 /**
  * Scopes given CSS selector fragment, if possible.
  * Returns either rewritten or the same node
- * @param {Object} part
+ * @param {List} selector
+ * @param {Object} item
  * @param {string} scope
  * @returns {boolean}
  */
-function rewriteSelectorPart(part, scope) {
+function rewriteSelectorPart2(selector, item, scope) {
+    const part = item.data;
+    const list = selector.children;
+
     if (part.type === 'PseudoClassSelector') {
         if (part.name === 'host') {
             // :host(<sel>)
-            return raw(`[${scope}-host]${rawContent(part)}`, part);
-        }
-
-        if (part.name === 'host-context') {
+            list.insertData(raw(`[${scope}-host]`), item);
+            if (part.children) {
+                list.replace(item, part.children);
+            } else {
+                list.remove(item);
+            }
+        } else if (part.name === 'host-context') {
             // :host-context(<sel>)
-            return raw(`${rawContent(part)} [${scope}-host]`, part);
+            if (part.children) {
+                list.insertList(part.children, item);
+            }
+            list.insertData(raw(` [${scope}-host]`), item);
+            list.remove(item);
         }
-    }
-
-    if (part.type === 'PseudoElementSelector' && part.name === 'slotted') {
-        const content = rawContent(part);
-
-        if (content) {
-            return raw(`slot[slotted][${scope}] > ${content}`, part);
+    } else if (part.type === 'PseudoElementSelector' && part.name === 'slotted') {
+        if (part.children) {
+            part.children.forEach((subSel, subSelItem) => {
+                subSel.children.prependData(raw(`slot[slotted][${scope}] > `));
+                list.insert(subSelItem, item);
+            });
+            list.remove(item);
         }
+    } else if (part.type === 'TypeSelector') {
+        list.insertData(raw(`[${scope}]`), item.next);
+    } else if (part.type === 'IdSelector' || part.type === 'ClassSelector' || part.type === 'AttributeSelector') {
+        list.insertData(raw(`[${scope}]`), item);
     }
-
-    if (part.type === 'TypeSelector') {
-        return raw(`${part.name}[${scope}]`, part);
-    }
-
-    if (part.type === 'IdSelector') {
-        return raw(`[${scope}]#${part.name}`, part);
-    }
-
-    if (part.type === 'ClassSelector') {
-        return raw(`[${scope}].${part.name}`, part);
-    }
-
-    if (part.type === 'AttributeSelector') {
-        return raw(`[${scope}]${generate(part)}`, part);
-    }
-
-    return part;
 }
 
 /**
  * Creates raw token with given value
  * @param {string} value
- * @param {Object} [src]
  */
-function raw(value, src) {
-    return {
-        type: 'Raw',
-        loc: src && src.loc,
-        value
-    };
-}
-
-function rawContent(node) {
-    let content = '';
-    walk(node, child => {
-        if (child.type === 'Selector') {
-            content = generate(child);
-        } else if (child.type === 'Raw') {
-            content = child.value;
-        }
-    });
-
-    return content;
+function raw(value) {
+    return { type: 'Raw', value };
 }
 
 /**
