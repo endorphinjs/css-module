@@ -1,12 +1,43 @@
 const { parse, walk, generate } = require('css-tree');
 
 /**
+ * @typedef {Object} CSSModuleOptions
+ * @property {boolean} sourceMap Generate output with source maps
+ * @property {(scope: string) => string} element A function that should return token for scoping single element inside component
+ * @property {(scope: string) => string} host A function that should return token for scoping component host
+ */
+
+const defaultOptions = {
+    /**
+     * Returns token for scoping single element inside component
+     * @param {string} scope
+     * @returns {string}
+     */
+    element(scope) {
+        return `[${scope}]`;
+    },
+
+    /**
+     * Returns token for scoping component host
+     * @param {string} scope
+     * @returns {string}
+     */
+    host(scope) {
+        return `[${scope}-host]`;
+    }
+};
+
+/**
  * Isolates given CSS code with `scope` token
  * @param {string} code CSS source to rewrite
  * @param {string} scope CSS scoping token
- * @param {Object} [options] Options for CSS Tree parser
+ * @param {CSSModuleOptions} [options] Options for CSS Tree parser
  */
 module.exports = function rewriteCSS(code, scope, options) {
+    options = {
+        ...defaultOptions,
+        ...options
+    };
     const ast = parse(code, options);
     const animations = {};
 
@@ -14,7 +45,7 @@ module.exports = function rewriteCSS(code, scope, options) {
         if (node.type === 'Selector') {
             if (!this.atrule || this.atrule.name !== 'keyframes') {
                 // Do no rewrite selectors inside @keyframes
-                rewriteSelector(node, scope);
+                rewriteSelector(node, scope, options);
             }
         } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes') {
             // Rewrite animation definition
@@ -45,15 +76,30 @@ module.exports = function rewriteCSS(code, scope, options) {
  * Scopes given CSS selector
  * @param {Object} sel
  * @param {string} scope
+ * @param {CSSModuleOptions} options
  */
-function rewriteSelector(sel, scope) {
+function rewriteSelector(sel, scope, options) {
     // To properly scope CSS selector, we have to rewrite fist and last part of it.
     // E.g. in `.foo .bar. > .baz` we have to scope `.foo` and `.baz` only
     const parts = getParts(sel);
-    const first = parts.shift(), last = parts.pop();
+    const localGlobal = [];
+    const scopable = parts.filter(part => {
+        if (part.type === 'PseudoElementSelector' && (part.name === 'global' || part.name === 'local')) {
+            localGlobal.push(part);
+            return false;
+        }
 
-    first && rewriteSelectorPart2(sel, first, scope);
-    last && rewriteSelectorPart2(sel, last, scope);
+        return true;
+    });
+    const first = scopable.shift();
+    const last = scopable.pop();
+
+    first && rewriteSelectorPart(sel, first, scope, options);
+    last && rewriteSelectorPart(sel, last, scope, options);
+
+    while (localGlobal.length) {
+        rewriteSelectorPart(sel, localGlobal.pop(), scope, options);
+    }
 }
 
 /**
@@ -62,16 +108,17 @@ function rewriteSelector(sel, scope) {
  * @param {List} selector
  * @param {Object} item
  * @param {string} scope
+ * @param {CSSModuleOptions} options
  * @returns {boolean}
  */
-function rewriteSelectorPart2(selector, item, scope) {
+function rewriteSelectorPart(selector, item, scope, options) {
     const part = item.data;
     const list = selector.children;
 
     if (part.type === 'PseudoClassSelector') {
         if (part.name === 'host') {
             // :host(<sel>)
-            list.insertData(raw(`[${scope}-host]`), item);
+            list.insertData(raw(options.host(scope)), item);
             if (part.children) {
                 list.replace(item, part.children);
             } else {
@@ -82,21 +129,34 @@ function rewriteSelectorPart2(selector, item, scope) {
             if (part.children) {
                 list.insertList(part.children, item);
             }
-            list.insertData(raw(` [${scope}-host]`), item);
+            list.insertData(raw(` ${options.host(scope)}`), item);
             list.remove(item);
         }
-    } else if (part.type === 'PseudoElementSelector' && part.name === 'slotted') {
-        if (part.children) {
+    } else if (part.type === 'PseudoElementSelector' && part.children) {
+        if (part.name === 'slotted') {
             part.children.forEach((subSel, subSelItem) => {
-                subSel.children.prependData(raw(`slot[slotted][${scope}] > `));
+                subSel.children.prependData(raw(`slot[slotted]${options.element(scope)} > `));
+                list.insert(subSelItem, item);
+            });
+            list.remove(item);
+        } else if (part.name === 'global') {
+            // TODO properly handle multiple selectors
+            part.children.forEach((subSel, subSelItem) => {
+                list.insert(subSelItem, item);
+            });
+            list.remove(item);
+        } else if (part.name === 'local') {
+            // TODO properly handle multiple selectors
+            part.children.forEach((subSel, subSelItem) => {
+                list.insertData(raw(options.host(scope) + ' '), item);
                 list.insert(subSelItem, item);
             });
             list.remove(item);
         }
     } else if (part.type === 'TypeSelector') {
-        list.insertData(raw(`[${scope}]`), item.next);
+        list.insertData(raw(options.element(scope)), item.next);
     } else if (part.type === 'IdSelector' || part.type === 'ClassSelector' || part.type === 'AttributeSelector') {
-        list.insertData(raw(`[${scope}]`), item);
+        list.insertData(raw(options.element(scope)), item);
     }
 }
 

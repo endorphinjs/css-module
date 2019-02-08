@@ -57,6 +57,22 @@ span[abc123]>a[abc123] {
     font-weight: bold
 }
 
+p {
+    color: red
+}
+
+div [abc123].foo {
+    padding: 10px
+}
+
+[abc123-host] .item {
+    font-size: 12px
+}
+
+[abc123-host] .foo, .bar {
+    font-size: 20px
+}
+
 @keyframes bounce-abc123 {
     from {
         transform: translateX(0)

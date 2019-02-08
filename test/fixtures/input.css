@@ -58,6 +58,22 @@ span>a {
     font-weight: bold;
 }
 
+::global(p) {
+	color: red;
+}
+
+::global(div) .foo {
+	padding: 10px;
+}
+
+::local(.item) {
+	font-size: 12px;
+}
+
+::local(.foo,.bar) {
+	font-size: 20px;
+}
+
 @keyframes bounce {
     from {
         transform: translateX(0);
