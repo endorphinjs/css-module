@@ -41,17 +41,34 @@ module.exports = function rewriteCSS(code, scope, options) {
     const ast = parse(code, options);
     const animations = {};
 
-    walk(ast, function(node) {
-        if (node.type === 'Selector') {
-            if (!this.atrule || this.atrule.name !== 'keyframes') {
+    walk(ast, {
+        enter(node) {
+            if (node.type === 'Selector') {
                 // Do no rewrite selectors inside @keyframes
-                rewriteSelector(node, scope, options);
+                if (!this.atrule || this.atrule.name !== 'keyframes') {
+                    const scopeMedia = this.atrule && getScopeMedia(this.atrule);
+                    if (scopeMedia === 'local') {
+                        node.children.prependData(raw(options.host(scope) + ' '));
+                    } else if (scopeMedia !== 'global') {
+                        rewriteSelector(node, scope, options);
+                    }
+
+                }
+            } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes') {
+                // Rewrite animation definition
+                const scopedName = concat(node.name, scope);
+                animations[node.name] = scopedName;
+                node.name = scopedName;
             }
-        } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes') {
-            // Rewrite animation definition
-            const scopedName = concat(node.name, scope);
-            animations[node.name] = scopedName;
-            node.name = scopedName;
+        },
+        leave(node, item, list) {
+            if (node.type === 'Atrule' && node.block) {
+                const scopeMedia = getScopeMedia(node);
+                if (scopeMedia === 'local' || scopeMedia === 'global') {
+                    list.insertList(node.block.children, item);
+                    list.remove(item);
+                }
+            }
         }
     });
 
@@ -195,4 +212,19 @@ function getParts(sel) {
     });
 
     return result;
+}
+
+/**
+ * Check if given `@media` rule is a scoping container (global or local)
+ * @param {Object} rule
+ * @returns {string} Name of scope media
+ */
+function getScopeMedia(rule) {
+    if (rule.type === 'Atrule' && rule.name === 'media' && rule.prelude && rule.prelude.children && rule.prelude.children.getSize() === 1) {
+        const mqList = rule.prelude.children.head.data;
+        if (mqList.children && mqList.children.getSize() === 1) {
+            const mq = mqList.children.head.data;
+            return mq.children && mq.children.getSize() === 1 && mq.children.head.data.type === 'Identifier' && mq.children.head.data.name;
+        }
+    }
 }

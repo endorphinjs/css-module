@@ -74,6 +74,26 @@ span>a {
 	font-size: 20px;
 }
 
+@media global {
+	.foo-global, .bar-global {
+		padding: 10px;
+	}
+
+	p.global {
+		color: #000;
+	}
+}
+
+@media local {
+	.foo-local, .bar-local {
+		padding: 10px;
+	}
+
+	p.local {
+		color: #000;
+	}
+}
+
 @keyframes bounce {
     from {
         transform: translateX(0);

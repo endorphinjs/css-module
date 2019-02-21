@@ -73,6 +73,22 @@ div [abc123].foo {
     font-size: 20px
 }
 
+.foo-global, .bar-global {
+    padding: 10px
+}
+
+p.global {
+    color: #000
+}
+
+[abc123-host] .foo-local, [abc123-host] .bar-local {
+    padding: 10px
+}
+
+[abc123-host] p.local {
+    color: #000
+}
+
 @keyframes bounce-abc123 {
     from {
         transform: translateX(0)
