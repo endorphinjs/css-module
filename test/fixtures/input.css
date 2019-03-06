@@ -23,6 +23,10 @@
     color: red;
 }
 
+::slotted(foo bar) {
+    color: blue;
+}
+
 * {
     font-size: 12px;
 }
@@ -33,6 +37,10 @@ a.foo.bar#baz {
 
 a .foo .bar #baz {
     position: relative;
+}
+
+main:not(.selected) {
+	padding: 10px;
 }
 
 .icon,

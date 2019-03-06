@@ -14,7 +14,7 @@
   },
   "scripts": {
     "test": "mocha",
-    "prepublish": "npm run test"
+    "prepare": "npm test"
   },
   "repository": {
     "type": "git",

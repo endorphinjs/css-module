@@ -23,6 +23,10 @@ slot[slotted][abc123] > div {
     color: red
 }
 
+slot[slotted][abc123] > foo bar {
+    color: blue
+}
+
 *[abc123] {
     font-size: 12px
 }
@@ -33,6 +37,10 @@ a[abc123].foo.bar#baz {
 
 a[abc123] .foo .bar [abc123]#baz {
     position: relative
+}
+
+main[abc123]:not(.selected) {
+    padding: 10px
 }
 
 [abc123].icon, [abc123].label {

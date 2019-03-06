@@ -38,8 +38,11 @@ function format(code) {
             break;
 
         case ',':
-        case ':':
             result += `${ch} `;
+            break;
+
+        case ':':
+            result += `${ch}${indent ? ' ' : ''}`;
             break;
 
         case ';':

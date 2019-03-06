@@ -42,17 +42,24 @@ module.exports = function rewriteCSS(code, scope, options) {
     const animations = {};
 
     walk(ast, {
-        enter(node) {
-            if (node.type === 'Selector') {
-                // Do no rewrite selectors inside @keyframes
-                if (!this.atrule || this.atrule.name !== 'keyframes') {
+        enter(node, item, list) {
+            if (node.type === 'Selector' && !this.function && !inKeyframe(this)) {
+                if (isSlotted(node)) {
+                    // Rewrite ::slotted()
+                    const slotted = node.children.first();
+                    slotted.children.forEach((subSel, subSelItem) => {
+                        subSel.children.prependData(raw(`slot[slotted]${options.element(scope)} > `));
+                        list.insert(subSelItem, item);
+                    });
+                    slotted.children.clear();
+                    list.remove(item);
+                } else {
                     const scopeMedia = this.atrule && getScopeMedia(this.atrule);
                     if (scopeMedia === 'local') {
                         node.children.prependData(raw(options.host(scope) + ' '));
                     } else if (scopeMedia !== 'global') {
                         rewriteSelector(node, scope, options);
                     }
-
                 }
             } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes') {
                 // Rewrite animation definition
@@ -150,13 +157,7 @@ function rewriteSelectorPart(selector, item, scope, options) {
             list.remove(item);
         }
     } else if (part.type === 'PseudoElementSelector' && part.children) {
-        if (part.name === 'slotted') {
-            part.children.forEach((subSel, subSelItem) => {
-                subSel.children.prependData(raw(`slot[slotted]${options.element(scope)} > `));
-                list.insert(subSelItem, item);
-            });
-            list.remove(item);
-        } else if (part.name === 'global') {
+        if (part.name === 'global') {
             // TODO properly handle multiple selectors
             part.children.forEach((subSel, subSelItem) => {
                 list.insert(subSelItem, item);
@@ -227,4 +228,23 @@ function getScopeMedia(rule) {
             return mq.children && mq.children.getSize() === 1 && mq.children.head.data.type === 'Identifier' && mq.children.head.data.name;
         }
     }
+}
+
+/**
+ * Check if context is in keyframe
+ * @param {import('css-tree').WalkContext} ctx
+ * @returns {boolean}
+ */
+function inKeyframe(ctx) {
+    return ctx.atrule && ctx.atrule.name === 'keyframes';
+}
+
+/**
+ * Check if given selector is slotted
+ * @param {import('css-tree').Selector} sel
+ * @returns {boolean}
+ */
+function isSlotted(sel) {
+    const first = sel.children.first();
+    return first && first.type === 'PseudoElementSelector' && first.name === 'slotted';
 }
