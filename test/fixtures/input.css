@@ -102,6 +102,11 @@ span>a {
 	}
 }
 
+/* Result of combined SCSS import */
+@media local and (-webkit-min-device-pixel-ratio: 2), local and (min-resolution:192dpi) {
+	.foo { padding: 10px; }
+}
+
 @keyframes bounce {
     from {
         transform: translateX(0);

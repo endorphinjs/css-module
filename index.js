@@ -72,8 +72,12 @@ module.exports = function rewriteCSS(code, scope, options) {
             if (node.type === 'Atrule' && node.block) {
                 const scopeMedia = getScopeMedia(node);
                 if (scopeMedia === 'local' || scopeMedia === 'global') {
-                    list.insertList(node.block.children, item);
-                    list.remove(item);
+                    if (shouldRemoveScopeMedia(node)) {
+                        list.insertList(node.block.children, item);
+                        list.remove(item);
+                    } else {
+                        rewriteScopeMedia(node);
+                    }
                 }
             }
         }
@@ -221,13 +225,66 @@ function getParts(sel) {
  * @returns {string} Name of scope media
  */
 function getScopeMedia(rule) {
+    let mediaName = null;
     if (rule.type === 'Atrule' && rule.name === 'media' && rule.prelude && rule.prelude.children && rule.prelude.children.getSize() === 1) {
-        const mqList = rule.prelude.children.head.data;
-        if (mqList.children && mqList.children.getSize() === 1) {
-            const mq = mqList.children.head.data;
-            return mq.children && mq.children.getSize() === 1 && mq.children.head.data.type === 'Identifier' && mq.children.head.data.name;
+        const mqList = rule.prelude.children.first();
+        if (mqList.children) {
+            mqList.children.some(mq => {
+                return mq.children.some(token => {
+                    if (isScopeMediaId(token)) {
+                        return mediaName = token.name;
+                    }
+                });
+            });
         }
     }
+
+    return mediaName;
+}
+
+/**
+ * Check if given scope media at-rule should be removed
+ * @param {object} rule
+ * @returns {boolean}
+ */
+function shouldRemoveScopeMedia(rule) {
+    const mqList = rule.prelude.children.first();
+    if (mqList.children) {
+        const mq = mqList.children.first();
+        return mq.children && mq.children.getSize() === 1;
+    }
+}
+
+function rewriteScopeMedia(rule) {
+    const mqList = rule.prelude.children.first();
+
+    mqList.children.forEach(mq => {
+        let accumulate = false;
+        const toRemove = [];
+        mq.children.forEach((token, item) => {
+            if (accumulate) {
+                toRemove.push(item);
+                if (token.type === 'Identifier' && token.name === 'and') {
+                    accumulate = false;
+                }
+            } else if (isScopeMediaId(token)) {
+                toRemove.push(item);
+                accumulate = true;
+            }
+        });
+
+        while (toRemove.length) {
+            mq.children.remove(toRemove.pop());
+        }
+    });
+}
+
+/**
+ * Check if given token is a scope media identifier
+ * @param {CssNodeCommon} token
+ */
+function isScopeMediaId(token) {
+    return token.type === 'Identifier' && (token.name === 'local' || token.name === 'global');
 }
 
 /**

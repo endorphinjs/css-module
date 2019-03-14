@@ -97,6 +97,12 @@ p.global {
     color: #000
 }
 
+@media  (-webkit-min-device-pixel-ratio:2),  (min-resolution:192dpi) {
+    [abc123-host] .foo {
+        padding: 10px
+    }
+}
+
 @keyframes bounce-abc123 {
     from {
         transform: translateX(0)
