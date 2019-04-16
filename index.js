@@ -40,10 +40,14 @@ module.exports = function rewriteCSS(code, scope, options) {
     };
     const ast = parse(code, options);
     const animations = {};
+    let scopeStack = [];
 
     walk(ast, {
         enter(node, item, list) {
-            if (node.type === 'Selector' && !this.function && !inKeyframe(this)) {
+            const scopeMedia = getScopeMedia(node);
+            if (scopeMedia === 'local' || scopeMedia === 'global') {
+                scopeStack.push(scopeMedia);
+            } else if (node.type === 'Selector' && !this.function && !inKeyframe(this)) {
                 if (isSlotted(node)) {
                     // Rewrite ::slotted()
                     const slotted = node.children.first();
@@ -54,14 +58,13 @@ module.exports = function rewriteCSS(code, scope, options) {
                     slotted.children.clear();
                     list.remove(item);
                 } else {
-                    const scopeMedia = this.atrule && getScopeMedia(this.atrule);
-                    if (scopeMedia === 'local') {
+                    if (last(scopeStack) === 'local') {
                         node.children.prependData(raw(options.host(scope) + ' '));
-                    } else if (scopeMedia !== 'global') {
+                    } else if (!scopeStack.includes('global')) {
                         rewriteSelector(node, scope, options);
                     }
                 }
-            } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes') {
+            } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes' && !scopeStack.includes('global')) {
                 // Rewrite animation definition
                 const scopedName = concat(node.name, scope);
                 animations[node.name] = scopedName;
@@ -69,15 +72,14 @@ module.exports = function rewriteCSS(code, scope, options) {
             }
         },
         leave(node, item, list) {
-            if (node.type === 'Atrule' && node.block) {
-                const scopeMedia = getScopeMedia(node);
-                if (scopeMedia === 'local' || scopeMedia === 'global') {
-                    if (shouldRemoveScopeMedia(node)) {
-                        list.insertList(node.block.children, item);
-                        list.remove(item);
-                    } else {
-                        rewriteScopeMedia(node);
-                    }
+            const scopeMedia = getScopeMedia(node);
+            if (scopeMedia === 'local' || scopeMedia === 'global') {
+                scopeStack.pop();
+                if (shouldRemoveScopeMedia(node)) {
+                    list.insertList(node.block.children, item);
+                    list.remove(item);
+                } else {
+                    rewriteScopeMedia(node);
                 }
             }
         }
@@ -304,4 +306,13 @@ function inKeyframe(ctx) {
 function isSlotted(sel) {
     const first = sel.children.first();
     return first && first.type === 'PseudoElementSelector' && first.name === 'slotted';
+}
+
+/**
+ * Returns last item in array
+ * @param {Array} arr
+ * @return {*}
+ */
+function last(arr) {
+    return arr.length ? arr[arr.length - 1] : void 0;
 }

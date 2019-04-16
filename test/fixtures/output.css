@@ -89,6 +89,12 @@ p.global {
     color: #000
 }
 
+@keyframes pop-in {
+    from {
+        transform: scale(0)
+    }
+}
+
 [abc123-host] .foo-local, [abc123-host] .bar-local {
     padding: 10px
 }

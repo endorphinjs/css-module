@@ -90,6 +90,12 @@ span>a {
 	p.global {
 		color: #000;
 	}
+
+	@keyframes pop-in {
+		from {
+			transform: scale(0);
+		}
+	}
 }
 
 @media local {
