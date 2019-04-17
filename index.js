@@ -64,7 +64,7 @@ module.exports = function rewriteCSS(code, scope, options) {
                         rewriteSelector(node, scope, options);
                     }
                 }
-            } else if (node.type === 'Identifier' && this.atrulePrelude && this.atrule.name === 'keyframes' && !scopeStack.includes('global')) {
+            } else if (node.type === 'Identifier' && this.atrulePrelude && isKeyframeRule(this.atrule) && !scopeStack.length) {
                 // Rewrite animation definition
                 const scopedName = concat(node.name, scope);
                 animations[node.name] = scopedName;
@@ -89,7 +89,7 @@ module.exports = function rewriteCSS(code, scope, options) {
     walk(ast, {
         visit: 'Declaration',
         enter(node) {
-            if (node.property === 'animation' || node.property === 'animation-name') {
+            if (cssName(node.property) === 'animation' || cssName(node.property) === 'animation-name') {
                 walk(node.value, value => {
                     if (value.type === 'Identifier' && value.name in animations) {
                         value.name = animations[value.name];
@@ -295,7 +295,7 @@ function isScopeMediaId(token) {
  * @returns {boolean}
  */
 function inKeyframe(ctx) {
-    return ctx.atrule && ctx.atrule.name === 'keyframes';
+    return isKeyframeRule(ctx.atrule);
 }
 
 /**
@@ -315,4 +315,23 @@ function isSlotted(sel) {
  */
 function last(arr) {
     return arr.length ? arr[arr.length - 1] : void 0;
+}
+
+/**
+ *
+ * @param {import('css-tree').Atrule} atrule
+ */
+function isKeyframeRule(atrule) {
+    const name = atrule && atrule.name || '';
+    return cssName(name) === 'keyframes';
+
+}
+
+/**
+ * Returns clean CSS name: removes any vendor prefixes from given name
+ * @param {string} propName
+ * @returns {string}
+ */
+function cssName(propName) {
+    return propName.replace(/^-\w+-/, '');
 }
